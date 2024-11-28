@@ -17,6 +17,7 @@ Multi-Agent Writer is a sophisticated tool designed to assist in generating and 
     ```
 
 3. Set up environment variables:
+    - Create an `.env` 
     - Add `GITHUB_TOKEN` from Azure Marketplace for prototyping.
     - Add `Tavily_API_TOKEN` in the `.env` file.
 
