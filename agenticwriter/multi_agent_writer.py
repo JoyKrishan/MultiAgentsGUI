@@ -10,7 +10,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import AnyMessage, SystemMessage, HumanMessage, AIMessage, ChatMessage
 from langgraph.checkpoint.memory import MemorySaver
 from tavily import TavilyClient
-from IPython.display import Image, display
+
 
 class AgentState(TypedDict):
     task: str
@@ -23,7 +23,6 @@ class AgentState(TypedDict):
     revision_number: int
     max_revisions: int
     count: Annotated[int, operator.add]
-
 
 class Queries(BaseModel):
     queries: List[str]
@@ -83,8 +82,6 @@ class MultiAgentWriter():
                 interrupt_after=['planner', 'researcher', 'generator', 'reflector', 'critiquer']
             )
         
-    def show_graph(self):
-        display(Image(self.graph.get_graph().draw_png()))
             
     def plan_node(self, state: AgentState):
         messages = [
@@ -105,7 +102,7 @@ class MultiAgentWriter():
             
         for query in queries.queries:
             responses = self.tavily.search(query, max_results=2)
-            for r in responses:
+            for r in responses['results']:
                 content.append(r["content"])
             
         return {"content": content,
@@ -121,6 +118,7 @@ class MultiAgentWriter():
         ]
         response = self.model.invoke(messages)
         return {"draft": response.content,
+                "revision_number": state.get("revision_number", 1) + 1,
                 "lnode": "generator",
                 "count": 1}
             
@@ -143,7 +141,7 @@ class MultiAgentWriter():
             
         for query in queries.queries:
             responses = self.tavily.search(query, max_results=2)
-            for r in responses:
+            for r in responses['results']:
                 content.append(r["content"])
             
         return {"content": content,
@@ -156,82 +154,3 @@ class MultiAgentWriter():
             return END
         else:
             return "reflect"
-
-import gradio as gr
-import time
-
-class WriterGUI():
-    def __init__(self, graph, share=False):
-        self.graph = graph
-        self.share = share
-        self.partial_message = ""
-        self.response = {}
-        self.max_iterations = 5
-        self.iterations = []
-        self.threads = []
-        self.thread_id = -1
-        self.thread = {"configurable": {"thread_id": str(self.thread_id)}}
-        #self.sdisps = {} #global    
-        self.demo = self.create_interface()
-        
-    def run_agent(self, start, topic, stop_after):
-        if start:
-            self.iterations.append(0)
-            config = {'task': topic,"max_revisions": 2,"revision_number": 0,
-                      'lnode': "", 'planner': "no plan", 'draft': "no draft", 'critique': "no critique", 
-                      'content': ["no content",], 'queries': "no queries", 'count':0}
-            self.thread_id += 1
-            self.threads.append(self.thread_id)
-        else:
-            config = None
-        
-        self.thread = {"configurable": {"thread_id": str(self.thread_id)}}
-        while self.iterations[self.thread_id] < self.max_iterations:
-            self.response = self.graph.invoke(config, self.thread)
-            self.iterations[self.thread_id] += 1
-            self.partial_message += str(self.response)
-            self.partial_message += f"\n------------------\n\n"
-            lnode,nnode,_,rev,acount = self.get_disp_state()
-            yield self.partial_message, lnode, nnode, self.thread_id, rev, acount
-            config = None
-            if not nnode:
-                return
-            if lnode in stop_after:
-                return
-            else:
-                pass
-        return 
-
-    def get_disp_state(self):
-        current_state = self.graph.get_state(self.thread)
-        lnode = current_state.values["lnode"]
-        acount = current_state.values["count"]
-        rev = current_state.values["revision_number"]
-        nnode = current_state.next
-        return lnode,nnode,self.thread_id,rev,acount
-
-    def get_state(self, key):
-        current_values = self.graph.get_state(self.thread)
-        if key in current_values.values:
-            lnode, nnode, self.thread_id, rev, astep = self.get_disp_state()
-            new_label = f"last_node: {lnode}, thread_id: {self.thread_id}, rev: {rev}, step: {astep}"
-            return gr.update(label=new_label, value=current_values.values[key])
-        else:
-            return ""
-    
-    def get_content(self):
-        current_values = self.graph.get_state(self.thread)
-        if "content" in current_values.values:
-            content = current_values.values["content"]
-            print(type(content))
-            lnode,nnode,thread_id,rev,astep = self.get_disp_state()
-            new_label = f"last_node: {lnode}, thread_id: {self.thread_id}, rev: {rev}, step: {astep}"
-            return gr.update(label=new_label, value="\n\n".join(content) + "\n\n") #TODO:check
-        else:
-            return ""
-            
-    def update_hist_pd(self):
-        ...
-    
-    def find_config(self, thread_ts):
-        ...
