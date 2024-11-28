@@ -1,14 +1,10 @@
-import os
+import io
 from dotenv import load_dotenv
-_ = load_dotenv()
-
-
+from PIL import Image
+import gradio as gr
 from agenticwriter.multi_agent_writer import MultiAgentWriter
 
-from PIL import Image
-import io
-import gradio as gr
-import time
+_ = load_dotenv()
 
 class WriterGUI():
     def __init__(self, graph, share=False):

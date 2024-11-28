@@ -1,16 +1,15 @@
 import os
-from dotenv import load_dotenv
-_ = load_dotenv()
-
-from langgraph.graph import StateGraph, END
 from typing import List, TypedDict, Annotated
 import operator
+from dotenv import load_dotenv
 from pydantic import BaseModel
+from langgraph.graph import StateGraph, END
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import AnyMessage, SystemMessage, HumanMessage, AIMessage, ChatMessage
 from langgraph.checkpoint.memory import MemorySaver
 from tavily import TavilyClient
 
+_ = load_dotenv()
 
 class AgentState(TypedDict):
     task: str
