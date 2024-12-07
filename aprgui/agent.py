@@ -32,7 +32,7 @@ class AgentState(TypedDict):
  
 class Localizer(BaseModel):
     buggy_stmts: List[str] = Field(description="Buggy statement(s) in the code")
-    explanation: List[str] = Field(description="Explanation for the buggy statement(s). Only one explanation per statement")
+    localizer_explanation: List[str] = Field(description="Explanation for the buggy statement(s). Only one explanation per statement")
     repair_hypothesis: str = Field(description="Hypothesis on the bug for the repair agent")
 
 class Repair(BaseModel):
@@ -108,7 +108,6 @@ class MultiAgentAPR():
             SystemMessage(content=self.UNDERSTAND_PROMPT),
             HumanMessage(content=content)
         ]
-        print(messages)
         response = self.model.invoke(messages)
         return {
             "localizer_hypothesis": response.content,
@@ -122,6 +121,7 @@ class MultiAgentAPR():
             HumanMessage(content=state["localizer_hypothesis"])
         ]
         response = self.model.with_structured_output(Localizer).invoke(messages)
+        print(response)
         return {
             "repair_hypothesis": response.repair_hypothesis,
             "buggy_stmts": response.buggy_stmts,
@@ -139,6 +139,7 @@ class MultiAgentAPR():
             HumanMessage(content=content)
         ]
         response = self.model.with_structured_output(Repair).invoke(messages)
+        print(response)
         return {
             "fix_diff": response.fix_diff,
             "repairer_explanation": response.repairer_explanation,
