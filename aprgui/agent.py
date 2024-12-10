@@ -7,7 +7,7 @@ from langgraph.graph import StateGraph, END
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import AnyMessage, SystemMessage, HumanMessage, AIMessage
 from langgraph.checkpoint.memory import MemorySaver
-from IPython.display import Image
+from IPython.display import Image, display
 
 _ = load_dotenv()
 
@@ -32,7 +32,7 @@ class AgentState(TypedDict):
  
 class Localizer(BaseModel):
     buggy_stmts: List[str] = Field(description="Buggy statement(s) in the code")
-    localizer_explanation: List[str] = Field(description="Explanation for the buggy statement(s). Only one explanation per statement")
+    localizer_explanations: List[str] = Field(description="Explanation for the buggy statement(s). Only one explanation per statement")
     repair_hypothesis: str = Field(description="Hypothesis on the bug for the repair agent")
 
 class Repair(BaseModel):
@@ -125,7 +125,7 @@ class MultiAgentAPR():
         return {
             "repair_hypothesis": response.repair_hypothesis,
             "buggy_stmts": response.buggy_stmts,
-            "localizer_explanations": response.explanation,
+            "localizer_explanations": response.localizer_explanations,
             "lnode": "localizer",
             "count": 1
         }
@@ -179,6 +179,10 @@ class MultiAgentAPR():
             return END
         return "revise"
 
+def draw_graph():
+    agent = MultiAgentAPR()
+    display(Image(agent.graph.get_graph().draw_png()))
+
 
 def test_model_with_defined_input():
     config = {
@@ -230,5 +234,6 @@ def test_model_with_defined_input():
             print(event)
 
 if __name__ == "__main__":
-    test_model_with_defined_input()
+    # test_model_with_defined_input()
+    draw_graph()
     
