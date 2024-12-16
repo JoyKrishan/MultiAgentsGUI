@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from PIL import Image
 import gradio as gr
 from typing import List
-from aprgui.agent import MultiAgentAPR
+from agenticpr.multi_agent_repair import MultiAgentAPR
 
 _ = load_dotenv()
 
