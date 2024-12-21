@@ -1,5 +1,6 @@
-import sys
+import os
 import io
+import json
 from dotenv import load_dotenv
 from PIL import Image
 import gradio as gr
@@ -8,13 +9,13 @@ from agenticpr.multi_agent_repair import MultiAgentAPR
 
 _ = load_dotenv()
 
-class APRGui():
+class APRGui(): 
     def __init__(self, graph, share=False):
         self.graph = graph
         self.share = share
         self.partial_response = ""
         self.response = {}
-        self.max_iterations = 2
+        self.max_iterations = 10
         self.iterations = []
         self.threads = []
         self.thread_id = -1
@@ -195,10 +196,13 @@ class APRGui():
                 with gr.Row():
                     buggy_code_bx = gr.Code(label="Buggy Code")
                     failed_test_count = gr.State(1)
+                    
+                with gr.Column():
+                    failed_tests_bx = gr.Textbox(visible=False, interactive=True, label="Failed Tests", lines=10)  
+                    
                 with gr.Row():
                     add_btn = gr.Button("Add Test", variant="primary", scale=0)
-                    remove_btn = gr.Button("Remove Test", variant="secondary", scale=0)
-                    failed_tests_bx = gr.Textbox(visible=False, interactive=True)       
+                    remove_btn = gr.Button("Remove Test", variant="secondary", scale=0)     
                        
                 @gr.render(inputs=failed_test_count)
                 def render_count(count):
@@ -232,9 +236,31 @@ class APRGui():
                         thread_pd = gr.Dropdown(label="Select Thread", choices=self.threads, interactive=True, min_width=120, scale=0)
                         step_pd = gr.Dropdown(label="Select Step", choices=['N/A'], interactive=True, min_width=160, scale=1)
                         
-                gen_repair_btn = gr.Button("Generate Repair", variant="primary")
-                revision_btn = gr.Button("Self-Reflect", variant="secondary")
+                gen_repair_btn = gr.Button("Start", variant="primary")
+                cont_btn = gr.Button("Continue", variant="secondary")
+                revision_btn = gr.Button("Self-Reflect", variant="secondary", visible=False)
                 live = gr.Textbox(label="Live Agent Output", lines=15)
+                
+                #examples
+                examples = json.load(open("examples.json"))
+                examples=[[ex["buggy_code"], len(ex["failed_tests"]), "\n--\n".join(ex["failed_tests"])] for ex in examples]
+                
+                QUIXBUG_PATH = os.path.join(os.environ["PYTHONPATH"], "benchmarks/QuixBugs")
+                example_labels = [file for file in  os.listdir(os.path.join(QUIXBUG_PATH, "java_programs")) 
+                    if file.endswith(".java")]
+                
+                def show_tests(failed_tests_bx):
+                    return (gr.update(visible=True))
+                
+                gr.Examples(
+                    examples=examples,
+                    inputs=[buggy_code_bx, failed_test_count, failed_tests_bx],
+                    outputs=[failed_tests_bx],
+                    example_labels=example_labels,
+                    examples_per_page=40,
+                )
+                        
+                failed_tests_bx.change(show_tests, failed_tests_bx, failed_tests_bx)
                 
                 # actions
                 sdisps = [buggy_code_bx, failed_tests_bx, lnode_bx, nnode_bx, threadid_bx, revision_bx, count_bx, step_pd, thread_pd]
@@ -242,13 +268,27 @@ class APRGui():
                                 fn=update_display, inputs=None, outputs=sdisps)
                 step_pd.input(self.copy_state,[step_pd],None).then(
                               fn=update_display, inputs=None, outputs=sdisps)
+                
                 gen_repair_btn.click(vary_btn,gr.Number("secondary", visible=False), gen_repair_btn).then(
-                              fn=self.run_agent, inputs=[gr.Number(True, visible=False),buggy_code_bx, stop_after, failed_tests_bx], outputs=[live],show_progress=True).then(fn=update_display, inputs=None, outputs=sdisps).then( 
-                              vary_btn,gr.Number("primary", visible=False), gen_repair_btn)
-                revision_btn.click(vary_btn,gr.Number("secondary", visible=False), revision_btn).then(
-                               fn=self.run_agent, inputs=[gr.Number(False, visible=False), buggy_code_bx, stop_after, failed_tests_bx], outputs=[live], show_progress=True).then( 
+                    fn=self.run_agent, inputs=[gr.Number(True, visible=False),buggy_code_bx, stop_after, failed_tests_bx], outputs=[live],show_progress=True).then(fn=update_display, inputs=None, outputs=sdisps).then( 
+                    vary_btn,gr.Number("primary", visible=False), gen_repair_btn)
+                
+                cont_btn.click(vary_btn,gr.Number("secondary", visible=False), cont_btn).then(
+                               fn=self.run_agent, inputs=[gr.Number(False, visible=False),buggy_code_bx,stop_after, failed_tests_bx], 
+                               outputs=[live]).then(
                                fn=update_display, inputs=None, outputs=sdisps).then(
-                               vary_btn,gr.Number("primary", visible=False), revision_btn)
+                               vary_btn,gr.Number("primary", visible=False), cont_btn)
+                
+                @gr.render(inputs=nnode_bx)
+                def render_stop_after(nnode):
+                    print(nnode)
+                    revision_btn.visible = True if "reflector" in nnode else False
+                    cont_btn.visible = False if "reflector" in nnode else True
+                
+                revision_btn.click(vary_btn,gr.Number("secondary", visible=False), revision_btn).then(
+                    fn=self.run_agent, inputs=[gr.Number(False, visible=False), buggy_code_bx, stop_after, failed_tests_bx], outputs=[live], show_progress=True).then( 
+                    fn=update_display, inputs=None, outputs=sdisps).then(
+                    vary_btn,gr.Number("primary", visible=False), revision_btn)
             
             with gr.Tab("Visualize"):
                 with gr.Row():
@@ -261,8 +301,9 @@ class APRGui():
                     refresh_btn = gr.Button("Refresh")
                     modify_btn = gr.Button("Modify")
                 understander = gr.Textbox(label="Understander", lines=10, interactive=True)
-                refresh_btn.click(fn=self.get_state, inputs=gr.Number("localizer_hypothesis", visible=False), 
-                                  outputs=understander)
+                
+                refresh_btn.click(fn=self.get_state, inputs=gr.Number("localizer_hypothesis", visible=False), outputs=understander)
+                
                 modify_btn.click(fn=self.modify_state, 
                                  inputs=[gr.Number("localizer_hypothesis", visible=False),gr.Number("understander", visible=False), understander],
                                  outputs=None).then(
@@ -275,13 +316,15 @@ class APRGui():
                 bug_stmts_bx = gr.Textbox(label="Localizer", lines=10, interactive=True)
                 repair_hypothesis_bx = gr.Textbox(label="Repair Hypothesis", lines=10, interactive=True)
                 explanation_bx = gr.Textbox(label="Localizer Explanation", lines=10, interactive=True)
+                
                 refresh_btn.click(fn=self.get_state, inputs=gr.Number("buggy_stmts", visible=False),outputs=bug_stmts_bx).then(
                                  fn=self.get_state, inputs=gr.Number("repair_hypothesis", visible=False),outputs=repair_hypothesis_bx).then(
                                  fn=self.get_state, inputs=gr.Number("localizer_explanations", visible=False), outputs=explanation_bx)
+    
                 modify_btn.click(fn=self.modify_state, inputs=[gr.Number("buggy_stmts", visible=False),gr.Number("localizer", visible=False), bug_stmts_bx], outputs=None).then(
-                                 fn=self.modify_state, inputs=[gr.Number("repair_hypothesis", visible=False),gr.Number("localizer", visible=False), repair_hypothesis_bx], outputs=None).then(
-                                 fn=self.modify_state, inputs=[gr.Number("localizer_explanations", visible=False),gr.Number("localizer", visible=False), explanation_bx], outputs=None).then(
-                                 fn=update_display, inputs=None, outputs=sdisps)
+                    fn=self.modify_state, inputs=[gr.Number("repair_hypothesis", visible=False),gr.Number("localizer", visible=False), repair_hypothesis_bx], outputs=None).then(
+                    fn=self.modify_state, inputs=[gr.Number("localizer_explanations", visible=False),gr.Number("localizer", visible=False), explanation_bx], outputs=None).then(
+                    fn=update_display, inputs=None, outputs=sdisps)
             
             with gr.Tab("Repairer"):
                 with gr.Row():

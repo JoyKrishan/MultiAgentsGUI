@@ -25,7 +25,7 @@ class AgentState(TypedDict):
     repair_hypothesis: str
     fix_diff: str
     repairer_explanation: str
-    revision: str
+    self_reflection: str
     revision_number: int
     max_revisions: int
     count: Annotated[int, operator.add]
@@ -70,29 +70,29 @@ class MultiAgentAPR():
                               "------\n"
                               "buggy program: {buggy_program}\n")
         
-        self.REVISION_PROMPT = ("You are an expert code reviewer tasked to review the fix"
+        self.REFLECTION_PROMPT = ("You are an expert code reviewer tasked to review the fix"
                                 "If all the test case pass else generate recommendation"
                                 "for improvement of the repair to pass all test cases")  # TODO: Tool utlization to place the fix and run the test cases
         
         builder.add_node("understander", self.understand_node)
         builder.add_node("localizer", self.localizer_node)
         builder.add_node("repairer", self.repairer_node)
-        builder.add_node("revisor", self.revision_node)
+        builder.add_node("reflector", self.reflect_node)
         
         builder.add_conditional_edges("repairer",
                                       self.should_continue,
-                                      {END:END, "revise":"revisor"})
+                                      {END:END, "reflect":"reflector"})
         
         builder.add_edge("understander", "localizer")
         builder.add_edge("localizer", "repairer")
-        builder.add_edge("revisor", "localizer")
+        builder.add_edge("reflector", "localizer")
         
         builder.set_entry_point("understander")
         
         memory = MemorySaver()
         self.graph = builder.compile(
             checkpointer=memory,
-            interrupt_before=["revisor"]
+            interrupt_before=["localizer", "repairer", "reflector"]
         )
         
     def understand_node(self, state:AgentState):
@@ -121,7 +121,6 @@ class MultiAgentAPR():
             HumanMessage(content=state["localizer_hypothesis"])
         ]
         response = self.model.with_structured_output(Localizer).invoke(messages)
-        print(response)
         return {
             "repair_hypothesis": response.repair_hypothesis,
             "buggy_stmts": response.buggy_stmts,
@@ -139,7 +138,6 @@ class MultiAgentAPR():
             HumanMessage(content=content)
         ]
         response = self.model.with_structured_output(Repair).invoke(messages)
-        print(response)
         return {
             "fix_diff": response.fix_diff,
             "repairer_explanation": response.repairer_explanation,
@@ -148,36 +146,38 @@ class MultiAgentAPR():
             "count": 1
         }
 
-    def revision_node(self, state:AgentState):
-        failed_test_cases = "".join([f"#{str(i)}\n\
-                             {test}\n\
-                             ------\n" for i, test in enumerate(state["failed_tests"])])
-        content = f"Buggy program\n\
-                    {state['buggy_program']}\n\
-                    ------\n\
-                    Failed test cases\n\
-                    {failed_test_cases}\n\
-                    ------\n\
-                    Identified buggy statement(s) by Localizer agent\n\
-                    {[f"#{str(i)}: {stmt}" for i, stmt in enumerate(state['buggy_stmts'])]}\n\
-                    ------\n\
-                    Provided fix by Repairer agent\n\
-                    {state['fix_diff']}"
+    def reflect_node(self, state: AgentState):
+        failed_test_cases = "".join([
+            f"#{i}\n{test}\n------\n" for i, test in enumerate(state["failed_tests"])
+        ])
+        content = (
+            f"Buggy program\n"
+            f"{state['buggy_program']}\n"
+            f"------\n"
+            f"Failed test cases\n"
+            f"{failed_test_cases}\n"
+            f"------\n"
+            f"Identified buggy statement(s) by Localizer agent\n"
+            f"{[f'#{i}: {stmt}' for i, stmt in enumerate(state['buggy_stmts'])]}\n"
+            f"------\n"
+            f"Provided fix by Repairer agent\n"
+            f"{state['fix_diff']}"
+        )
         message = [
-            SystemMessage(content=self.REVISION_PROMPT),
+            SystemMessage(content=self.REFLECTION_PROMPT),
             HumanMessage(content=content),
         ]
         response = self.model.invoke(message)
         return {
-            "revision": response.content,
-            "lnode": "revisor",
+            "self_reflection": response.content,
+            "lnode": "reflector",
             "count": 1
         }
     
     def should_continue(self, state:AgentState):
         if state["revision_number"] > state["max_revisions"]:
             return END
-        return "revise"
+        return "reflect"
 
 def draw_graph():
     agent = MultiAgentAPR()
