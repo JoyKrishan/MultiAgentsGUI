@@ -4,7 +4,7 @@
 
 MultiAgentGui is a powerful toolset designed to enhance productivity and streamline workflows. This documentation provides an overview of the two main agentic tools available: `agenticpr` and `agenticwriter`.
 
-## agenticpr
+## AgenticPR
 
 `APRGui` is a sophisticated tool designed for automated program repair. It identifies bugs in your code and, using the provided failed test cases, automatically generates fixes to repair the bugs. This tool significantly reduces the time and effort required for debugging and ensures that your codebase remains robust and error-free.
 
@@ -28,7 +28,7 @@ To use `APRGui`, follow these steps:
 By integrating `APRGui` into your development workflow, you can maintain a high-quality codebase with minimal manual intervention.
 
 
-## agenticwriter
+## AgenticWriter
 
 `agenticwriter` is a content generation tool that assists in writing documentation, reports, and other textual content. It leverages AI to provide suggestions and automate repetitive writing tasks.
 
