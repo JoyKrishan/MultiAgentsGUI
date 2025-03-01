@@ -8,6 +8,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import AnyMessage, SystemMessage, HumanMessage, AIMessage
 from langgraph.checkpoint.memory import MemorySaver
 from IPython.display import Image, display
+from langsmith.wrappers import wrap_openai
 
 _ = load_dotenv()
 
@@ -100,10 +101,10 @@ class MultiAgentAPR():
                              {test}\n\
                              ------\n" for i, test in enumerate(state["failed_tests"])])
         content=f"Buggy program\n\
-                    {state['buggy_program']}\n\
-                    ------\n\
-                    Failed test cases\n\
-                    {failed_test_cases}"
+                {state['buggy_program']}\n\
+                ------\n\
+                Failed test cases\n\
+                {failed_test_cases}"
         messages = [
             SystemMessage(content=self.UNDERSTAND_PROMPT),
             HumanMessage(content=content)
