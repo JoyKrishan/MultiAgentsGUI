@@ -2,7 +2,7 @@
 
 ## Overview
 
-MultiAgentGui is a powerful toolset designed to enhance productivity and streamline workflows. This documentation provides an overview of the two main agentic tools available: `agenticpr` and `agenticwriter`.
+MultiAgentGui is a powerful toolset designed to enhance productivity and streamline workflows. This documentation provides an overview of the two main agentic tools available: `agenticpr`,  `agenticwriter`, and `agenticcalender`.
 
 ## AgenticPR
 
